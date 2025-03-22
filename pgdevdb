@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# Function to check if a database exists
+db_exists() {
+  sudo -i -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$1'" | grep -q 1
+}
+
+# Function to check if a user exists
+user_exists() {
+  sudo -i -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$1'" | grep -q 1
+}
+
+# Function to refresh collation version
+refresh_collation() {
+  echo "Refreshing collation version for the postgres database..."
+  sudo -i -u postgres psql -c "ALTER DATABASE postgres REFRESH COLLATION VERSION;"
+}
+
+# Check if an argument is provided
+if [ -z "$1" ]; then
+  echo "Usage: $0 [-d] <database_name>"
+  exit 1
+fi
+
+# Refresh collation version to prevent warnings
+refresh_collation
+
+# Handle delete flag
+if [ "$1" == "-d" ]; then
+  if [ -z "$2" ]; then
+    echo "Usage: $0 -d <database_name>"
+    exit 1
+  fi
+  DB_NAME="$2"
+  DB_USER="$2"
+  echo "Deleting database and user: $DB_NAME"
+  sudo -i -u postgres psql <<EOF
+  DROP DATABASE IF EXISTS $DB_NAME;
+  DROP USER IF EXISTS $DB_USER;
+EOF
+  echo "Database and user deleted."
+  exit 0
+fi
+
+# Define variables
+DB_NAME="$1"
+DB_USER="$1"
+DB_PASS="$1"
+
+# Check if database or user already exists
+if db_exists "$DB_NAME"; then
+  echo "Error: Database '$DB_NAME' already exists."
+  exit 1
+fi
+
+if user_exists "$DB_USER"; then
+  echo "Error: User '$DB_USER' already exists."
+  exit 1
+fi
+
+# Switch to postgres user and execute SQL commands
+sudo -i -u postgres psql <<EOF
+CREATE DATABASE $DB_NAME;
+CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';
+\c $DB_NAME
+GRANT ALL ON SCHEMA public TO $DB_USER;
+ALTER SCHEMA public OWNER TO $DB_USER;
+EOF
+
+echo "Database and user creation completed."
