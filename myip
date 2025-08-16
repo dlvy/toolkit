@@ -1,0 +1,13 @@
+#!/bin/bash
+
+ipinfo=$(curl -s -4 https://ipinfo.io)
+ip=$(echo "$ipinfo" | jq -r .ip)
+cc=$(echo "$ipinfo" | jq -r .country)
+org=$(echo "$ipinfo" | jq -r .org)
+flag=""
+for ((i=0; i<${#cc}; i++)); do
+    c=$(printf '%d' "'${cc:i:1}")
+    flag+=$(printf "%b" "$(printf '\\U%X' $((c+127397)))")
+done
+echo "$ip"
+echo "$flag $org"
