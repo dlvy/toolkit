@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# dockernuke - Stops and removes all containers and optionally prunes volumes/images/networks
+
+set -euo pipefail
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [OPTIONS]
+
+Stops and removes all Docker containers. Optionally cleans up images, volumes, and networks.
+
+Options:
+  -i    Also remove all images (docker image prune -a)
+  -v    Also remove all volumes (docker volume prune)
+  -n    Also remove all networks (docker network prune)
+  -f    Force prune without confirmation
+  -a    Remove EVERYTHING (alias for -i -v -n -f)
+  -h    Show this help message
+
+Examples:
+  $(basename "$0")         # stop & remove all containers
+  $(basename "$0") -i -v   # also remove images and volumes
+  $(basename "$0") -a      # nuke everything, no questions asked
+EOF
+    exit 0
+}
+
+# Flags
+prune_images=0
+prune_volumes=0
+prune_networks=0
+force_flag=""
+
+while getopts "ivnaf?h" opt; do
+  case $opt in
+    i) prune_images=1 ;;
+    v) prune_volumes=1 ;;
+    n) prune_networks=1 ;;
+    f) force_flag="--force" ;;
+    a) prune_images=1; prune_volumes=1; prune_networks=1; force_flag="--force" ;;
+    h|\?) usage ;;
+  esac
+done
+
+echo "Stopping all containers..."
+docker ps -q | xargs -r docker stop
+
+echo "Removing all containers..."
+docker ps -aq | xargs -r docker rm
+
+if [[ $prune_images -eq 1 ]]; then
+    echo "Pruning images..."
+    docker image prune -a $force_flag
+fi
+
+if [[ $prune_volumes -eq 1 ]]; then
+    echo "Pruning volumes..."
+    docker volume prune $force_flag
+fi
+
+if [[ $prune_networks -eq 1 ]]; then
+    echo "Pruning networks..."
+    docker network prune $force_flag
+fi
+
+echo "✅ Cleanup complete."
+
